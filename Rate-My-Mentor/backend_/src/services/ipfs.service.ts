@@ -1,35 +1,62 @@
+//本文件：
+// 一条能力负责把评价加密后上传到 IPFS，
+// 另一条能力负责按 CID 取回加密内容并解密，给上层 ReputationService 使用。
+//仍然坚持：service 在调用时按需拿 client，所以用 getPinataClient()
+//但不再“只保留上传”，因为现在 ReputationService 已经明确要读取并解密评价原文
+//所以要把 getDecryptedReview() 正式恢复回来
+
 import { getPinataClient } from '../config/pinata';
-//import { pinataClient } from '../config/pinata';
-import { encryptContent } from '../utils/encryption.util';
-//import { encryptContent, decryptContent } from '../utils/encryption.util';
-//G言：service 不在模块加载时绑定 client，而是在调用时按需获取。这和整个项目现在的配置层设计是一致的。
+import { encryptContent, decryptContent } from '../utils/encryption.util';
 
 export class IPFSService {
-  // 1. 加密评价内容，上传到IPFS，返回CID
+  // 1. 加密评价内容并上传到 IPFS，返回 CID 和可访问链接
   static async uploadEncryptedReview(
     rawContent: string
   ): Promise<{ cid: string; ipfsUrl: string }> {
-    // 先加密原始评价内容
     const encryptedContent = encryptContent(rawContent);
 
-    // 上传到Pinata IPFS
-    const uploadResult = await pinataClient.pinJSONToIPFS(
+    const uploadResult = await getPinataClient().pinJSONToIPFS(
       {
         encryptedContent,
         uploadTime: new Date().toISOString(),
       },
       {
-        pinataMetadata: { 
-          name: 'mentor-review-encrypted' },
+        pinataMetadata: {
+          name: 'mentor-review-encrypted',
+        },
       }
     );
 
-    const cid = uploadResult.IpfsHash; //易为新添
+    const cid = uploadResult.IpfsHash;
 
     return {
       cid,
       ipfsUrl: `https://gateway.pinata.cloud/ipfs/${cid}`,
     };
+  }
+
+  // 2. 从 IPFS 获取加密内容，解密后返回原始评价
+  static async getDecryptedReview(cid: string): Promise<string> {
+    try {
+      const response = await fetch(`https://gateway.pinata.cloud/ipfs/${cid}`);
+
+      if (!response.ok) {
+        throw new Error(`IPFS 内容获取失败，status=${response.status}`);
+      }
+
+      const data = await response.json();
+
+      if (!data?.encryptedContent) {
+        throw new Error('IPFS 返回内容缺少 encryptedContent 字段');
+      }
+
+      const rawContent = decryptContent(data.encryptedContent);
+
+      return rawContent;
+    } catch (error) {
+      console.error('IPFS 内容解密失败：', error);
+      throw new Error('评价内容获取失败');
+    }
   }
 }
 
