@@ -51,7 +51,7 @@ export function getContractAddress(): `0x${string}` {
   //_publicClient = createPublicClient({
     //chain: avalancheFuji,
     //transport: http(RPC_URL),
-  });
+  //});
 
   //return _publicClient;
 //}
