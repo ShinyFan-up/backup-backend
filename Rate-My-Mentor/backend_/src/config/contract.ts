@@ -1,8 +1,14 @@
 import { createPublicClient, http } from 'viem';
-
 import { avalancheFuji } from 'viem/chains';
 import { requireEnv } from './env';
 
+// ✅ 修复：补上缺失的 getChainEnv 函数
+function getChainEnv() {
+  return {
+    RPC_URL: requireEnv('RPC_URL'),
+    CONTRACT_ADDRESS: requireEnv('CONTRACT_ADDRESS'),
+  };
+}
 
 let _publicClient: ReturnType<typeof createPublicClient> | null = null;
 
